@@ -9,7 +9,6 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f0; color: #1a1a1a; }
 .app { padding: 1rem; max-width: 1100px; margin: 0 auto; }
-h1 { font-size: 20px; font-weight: 600; margin-bottom: 1rem; color: #1a1a1a; }
 .top-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 8px; }
 .week-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .week-tab { padding: 6px 14px; font-size: 13px; border: 1px solid #d0cfc8; border-radius: 8px; background: white; cursor: pointer; color: #666; }
@@ -17,10 +16,13 @@ h1 { font-size: 20px; font-weight: 600; margin-bottom: 1rem; color: #1a1a1a; }
 .month-nav { display: flex; align-items: center; gap: 8px; }
 .month-nav button { border: 1px solid #d0cfc8; background: white; border-radius: 8px; padding: 5px 12px; cursor: pointer; color: #1a1a1a; font-size: 13px; }
 .month-label { font-size: 15px; font-weight: 500; min-width: 130px; text-align: center; }
-.actions { display: flex; gap: 8px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .btn { padding: 7px 14px; font-size: 13px; border: 1px solid #d0cfc8; border-radius: 8px; background: white; cursor: pointer; color: #1a1a1a; display: inline-flex; align-items: center; gap: 6px; }
 .btn-primary { background: #dbeafe; color: #1d4ed8; border-color: transparent; font-weight: 500; }
+.btn-success { background: #d1fae5; color: #065f46; border-color: transparent; font-weight: 500; }
+.btn-warning { background: #fef3db; color: #854f0b; border-color: transparent; font-weight: 500; }
 .btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .table-wrap { overflow-x: auto; border: 1px solid #e0dfd8; border-radius: 12px; background: white; }
 table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 720px; }
 thead th { background: #f5f5f0; padding: 9px 6px; text-align: center; font-weight: 500; color: #666; border-bottom: 1px solid #e0dfd8; white-space: nowrap; }
@@ -49,6 +51,8 @@ tbody td:first-child { padding-left: 14px; }
 .s-conge .badge-sub { color: #b07020; }
 .s-repos .badge-sub { color: #3b82f6; }
 .s-absent .badge-sub { color: #bbb; }
+.copy-banner { background: #fef3db; border: 1px solid #f5c842; border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; font-size: 13px; color: #854f0b; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.copy-banner span { display: flex; align-items: center; gap: 6px; font-weight: 500; }
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 200; }
 .modal { background: white; border-radius: 14px; border: 1px solid #e0dfd8; padding: 1.4rem; width: 330px; max-width: 95vw; box-shadow: 0 4px 24px rgba(0,0,0,0.12); }
 .modal h2 { font-size: 15px; font-weight: 600; margin-bottom: 1rem; color: #1a1a1a; }
@@ -73,14 +77,12 @@ tbody td:first-child { padding-left: 14px; }
 .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #666; }
 .legend-dot { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
 .page-title { display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; }
-.page-title h1 { margin-bottom: 0; }
+.page-title h1 { font-size: 20px; font-weight: 600; }
 </style>
 </head>
 <body>
 <div class="app">
-  <div class="page-title">
-    <h1>📋 Planning Salle</h1>
-  </div>
+  <div class="page-title"><h1>📋 Planning Salle</h1></div>
 
   <div class="top-bar">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -92,8 +94,15 @@ tbody td:first-child { padding-left: 14px; }
       <div class="week-tabs" id="week-tabs"></div>
     </div>
     <div class="actions">
+      <button class="btn btn-warning" onclick="copyWeek()" id="btn-copy"><i class="ti ti-copy"></i> Copier semaine</button>
+      <button class="btn btn-success" onclick="pasteWeek()" id="btn-paste" disabled><i class="ti ti-clipboard"></i> Coller</button>
       <button class="btn" onclick="toggleEmpPanel()"><i class="ti ti-users"></i> Équipe</button>
     </div>
+  </div>
+
+  <div id="copy-banner" class="copy-banner hidden">
+    <span><i class="ti ti-clipboard-check"></i> <span id="copy-banner-text"></span></span>
+    <button class="btn" onclick="cancelCopy()" style="font-size:12px;padding:4px 10px;"><i class="ti ti-x"></i> Annuler</button>
   </div>
 
   <div id="emp-panel" class="emp-panel hidden">
@@ -157,65 +166,56 @@ tbody td:first-child { padding-left: 14px; }
 </div>
 
 <script>
-const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-const DAYS_FR = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
-const AVATAR_COLORS = [
-  {bg:'#dbeafe',c:'#1d4ed8'},
-  {bg:'#f0f9e8',c:'#2d6a0a'},
-  {bg:'#fef3db',c:'#854f0b'},
-  {bg:'#fce7f3',c:'#9d174d'},
-  {bg:'#ede9fe',c:'#5b21b6'},
-  {bg:'#d1fae5',c:'#065f46'},
-  {bg:'#fee2e2',c:'#991b1b'},
-  {bg:'#e0f2fe',c:'#0369a1'},
+const MONTHS_FR=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const DAYS_FR=['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+const AVATAR_COLORS=[
+  {bg:'#dbeafe',c:'#1d4ed8'},{bg:'#f0f9e8',c:'#2d6a0a'},
+  {bg:'#fef3db',c:'#854f0b'},{bg:'#fce7f3',c:'#9d174d'},
+  {bg:'#ede9fe',c:'#5b21b6'},{bg:'#d1fae5',c:'#065f46'},
+  {bg:'#fee2e2',c:'#991b1b'},{bg:'#e0f2fe',c:'#0369a1'},
 ];
 
-let currentYear = new Date().getFullYear();
-let currentMonth = new Date().getMonth();
-let currentWeek = 0;
-let employees = [
-  {id:1,name:'Carmel'},
-  {id:2,name:'Zoé'},
-  {id:3,name:'Pierre'},
-  {id:4,name:'Clément'},
-  {id:5,name:'Nolwenn'},
-  {id:6,name:'Louis'},
-  {id:7,name:'Bastien'},
-  {id:8,name:'Saisonnier'},
+let currentYear=new Date().getFullYear();
+let currentMonth=new Date().getMonth();
+let currentWeek=0;
+let employees=[
+  {id:1,name:'Carmel'},{id:2,name:'Zoé'},{id:3,name:'Pierre'},
+  {id:4,name:'Clément'},{id:5,name:'Nolwenn'},{id:6,name:'Louis'},
+  {id:7,name:'Bastien'},{id:8,name:'Saisonnier'},
 ];
-let nextEmpId = 9;
-let planning = {};
-let editTarget = null;
-let currentWeeks = [];
+let nextEmpId=9;
+let planning={};
+let editTarget=null;
+let currentWeeks=[];
+let copiedWeek=null; // {weekDays, label}
 
-function storageKey(y,m){ return 'planning_'+y+'_'+m; }
-
+function storageKey(y,m){return 'planning_'+y+'_'+m;}
 function save(){
-  try {
-    localStorage.setItem(storageKey(currentYear,currentMonth), JSON.stringify(planning));
-    localStorage.setItem('employees_v2', JSON.stringify({employees,nextEmpId}));
-  } catch(e){}
+  try{
+    localStorage.setItem(storageKey(currentYear,currentMonth),JSON.stringify(planning));
+    localStorage.setItem('employees_v2',JSON.stringify({employees,nextEmpId}));
+  }catch(e){}
+}
+function loadMonth(){
+  try{
+    const plan=localStorage.getItem(storageKey(currentYear,currentMonth));
+    planning=plan?JSON.parse(plan):{};
+  }catch(e){planning={};}
+}
+function loadEmployees(){
+  try{
+    const emp=localStorage.getItem('employees_v2');
+    if(emp){const d=JSON.parse(emp);employees=d.employees;nextEmpId=d.nextEmpId;}
+  }catch(e){}
 }
 
-function load(){
-  try {
-    const emp = localStorage.getItem('employees_v2');
-    if(emp){ const d=JSON.parse(emp); employees=d.employees; nextEmpId=d.nextEmpId; }
-    const plan = localStorage.getItem(storageKey(currentYear,currentMonth));
-    planning = plan ? JSON.parse(plan) : {};
-  } catch(e){ planning={}; }
-}
+function dateKey(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function cellKey(id,dk,s){return id+'_'+dk+'_'+s;}
+function getCell(id,dk,s){return planning[cellKey(id,dk,s)]||{status:'absent',poste:'',heure:''};}
+function setCell(id,dk,s,data){planning[cellKey(id,dk,s)]=data;save();}
 
-function dateKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-function cellKey(id,dk,s){ return id+'_'+dk+'_'+s; }
-function getCell(id,dk,s){ return planning[cellKey(id,dk,s)]||{status:'absent',poste:'',heure:''}; }
-function setCell(id,dk,s,data){ planning[cellKey(id,dk,s)]=data; save(); }
-
-function initials(name){
-  const p=name.trim().split(' ');
-  return p.length>=2?(p[0][0]+p[1][0]).toUpperCase():name.slice(0,2).toUpperCase();
-}
-function avatarColor(id){ return AVATAR_COLORS[(id-1)%AVATAR_COLORS.length]; }
+function initials(name){const p=name.trim().split(' ');return p.length>=2?(p[0][0]+p[1][0]).toUpperCase():name.slice(0,2).toUpperCase();}
+function avatarColor(id){return AVATAR_COLORS[(id-1)%AVATAR_COLORS.length];}
 
 function getMonWeeks(year,month){
   const result=[];
@@ -226,16 +226,77 @@ function getMonWeeks(year,month){
   else if(dow!==1) monday.setDate(d.getDate()-(dow-1));
   for(let w=0;w<6;w++){
     const week=[];
-    for(let i=0;i<6;i++){
-      const dd=new Date(monday);
-      dd.setDate(monday.getDate()+i);
-      week.push(new Date(dd));
-    }
+    for(let i=0;i<6;i++){const dd=new Date(monday);dd.setDate(monday.getDate()+i);week.push(new Date(dd));}
     if(week.some(dd=>dd.getMonth()===month)) result.push(week);
     monday.setDate(monday.getDate()+7);
     if(monday.getMonth()>month&&monday.getFullYear()>=year) break;
   }
   return result;
+}
+
+// COPY / PASTE
+function copyWeek(){
+  const week=currentWeeks[currentWeek];
+  if(!week) return;
+  const inM=week.filter(d=>d.getMonth()===currentMonth);
+  const label='S'+(currentWeek+1)+' '+MONTHS_FR[currentMonth]+' ('+inM[0].getDate()+' – '+inM[inM.length-1].getDate()+')';
+
+  // Stocker les données relatives (index jour 0-5, service, empId)
+  const snapshot={};
+  employees.forEach(emp=>{
+    week.forEach((day,di)=>{
+      ['midi','soir'].forEach(s=>{
+        const cell=getCell(emp.id,dateKey(day),s);
+        if(cell.status!=='absent'){
+          snapshot[emp.id+'_'+di+'_'+s]=JSON.parse(JSON.stringify(cell));
+        }
+      });
+    });
+  });
+  copiedWeek={snapshot,label};
+  document.getElementById('copy-banner-text').textContent='Semaine copiée : '+label+' — Navigue vers une autre semaine et clique "Coller"';
+  document.getElementById('copy-banner').classList.remove('hidden');
+  document.getElementById('btn-paste').disabled=false;
+  renderAll();
+}
+
+function pasteWeek(){
+  if(!copiedWeek) return;
+  const week=currentWeeks[currentWeek];
+  if(!week) return;
+  const label='S'+(currentWeek+1)+' '+MONTHS_FR[currentMonth];
+  if(!confirm('Coller le planning "'+copiedWeek.label+'" sur '+label+' ?\nLes données existantes de cette semaine seront remplacées.')) return;
+
+  // Effacer la semaine cible
+  employees.forEach(emp=>{
+    week.forEach(day=>{
+      ['midi','soir'].forEach(s=>{
+        delete planning[cellKey(emp.id,dateKey(day),s)];
+      });
+    });
+  });
+
+  // Appliquer le snapshot
+  employees.forEach(emp=>{
+    week.forEach((day,di)=>{
+      ['midi','soir'].forEach(s=>{
+        const key=emp.id+'_'+di+'_'+s;
+        if(copiedWeek.snapshot[key]){
+          planning[cellKey(emp.id,dateKey(day),s)]=JSON.parse(JSON.stringify(copiedWeek.snapshot[key]));
+        }
+      });
+    });
+  });
+
+  save();
+  renderAll();
+  alert('Planning collé avec succès sur '+label+' !');
+}
+
+function cancelCopy(){
+  copiedWeek=null;
+  document.getElementById('copy-banner').classList.add('hidden');
+  document.getElementById('btn-paste').disabled=true;
 }
 
 function renderWeekTabs(weeks){
@@ -245,7 +306,7 @@ function renderWeekTabs(weeks){
     const btn=document.createElement('button');
     btn.className='week-tab'+(i===currentWeek?' active':'');
     const inM=week.filter(d=>d.getMonth()===currentMonth);
-    const s=inM[0]||week[0], e=inM[inM.length-1]||week[5];
+    const s=inM[0]||week[0],e=inM[inM.length-1]||week[5];
     btn.textContent='S'+(i+1)+' · '+s.getDate()+' – '+e.getDate();
     btn.onclick=()=>{currentWeek=i;renderAll();};
     el.appendChild(btn);
@@ -255,15 +316,14 @@ function renderWeekTabs(weeks){
 function renderTable(week){
   const head=document.getElementById('table-head');
   const body=document.getElementById('table-body');
-  head.innerHTML=''; body.innerHTML='';
+  head.innerHTML='';body.innerHTML='';
   const tr=document.createElement('tr');
   const th0=document.createElement('th');
-  th0.textContent='Employé'; tr.appendChild(th0);
+  th0.textContent='Employé';tr.appendChild(th0);
   week.forEach(day=>{
     const inM=day.getMonth()===currentMonth;
     const th=document.createElement('th');
-    th.className='day-head';
-    th.style.opacity=inM?'1':'0.3';
+    th.className='day-head';th.style.opacity=inM?'1':'0.3';
     th.innerHTML=DAYS_FR[day.getDay()]+' '+day.getDate()+'<br><span class="service-label">Midi · Soir</span>';
     tr.appendChild(th);
   });
@@ -290,14 +350,8 @@ function renderTable(week){
         lbl.className='badge-label';
         lbl.textContent=cell.status==='absent'?(service==='midi'?'Midi':'Soir'):TL[cell.status];
         div.appendChild(lbl);
-        if(cell.status==='present'&&cell.poste){
-          const p=document.createElement('span');
-          p.className='badge-sub'; p.textContent=cell.poste; div.appendChild(p);
-        }
-        if(cell.status==='present'&&cell.heure){
-          const h=document.createElement('span');
-          h.className='badge-sub'; h.textContent=cell.heure; div.appendChild(h);
-        }
+        if(cell.status==='present'&&cell.poste){const p=document.createElement('span');p.className='badge-sub';p.textContent=cell.poste;div.appendChild(p);}
+        if(cell.status==='present'&&cell.heure){const h=document.createElement('span');h.className='badge-sub';h.textContent=cell.heure;div.appendChild(h);}
         if(inM) div.onclick=()=>openModal(emp.id,dk,service,emp.name,day);
         td.appendChild(div);
       });
@@ -330,7 +384,7 @@ function renderSummary(week){
 function renderEmpList(){
   const el=document.getElementById('emp-list');
   el.innerHTML='';
-  if(!employees.length){ el.innerHTML='<p style="font-size:13px;color:#999;padding:8px 0;">Aucun employé.</p>'; return; }
+  if(!employees.length){el.innerHTML='<p style="font-size:13px;color:#999;padding:8px 0;">Aucun employé.</p>';return;}
   employees.forEach(emp=>{
     const div=document.createElement('div');
     div.className='emp-list-item';
@@ -351,18 +405,18 @@ function addEmployee(){
   if(!name) return;
   employees.push({id:nextEmpId++,name});
   input.value='';
-  save(); renderEmpList(); renderAll();
+  save();renderEmpList();renderAll();
 }
 
 function removeEmployee(id){
   if(!confirm('Supprimer cet employé ?')) return;
   employees=employees.filter(e=>e.id!==id);
-  save(); renderEmpList(); renderAll();
+  save();renderEmpList();renderAll();
 }
 
 function renameEmployee(id,name){
   const emp=employees.find(e=>e.id===id);
-  if(emp&&name.trim()){ emp.name=name.trim(); save(); renderAll(); }
+  if(emp&&name.trim()){emp.name=name.trim();save();renderAll();}
 }
 
 function renderAll(){
@@ -379,7 +433,7 @@ function changeMonth(dir){
   currentMonth+=dir;
   if(currentMonth<0){currentMonth=11;currentYear--;}
   if(currentMonth>11){currentMonth=0;currentYear++;}
-  currentWeek=0; load(); renderAll();
+  currentWeek=0;loadMonth();renderAll();
 }
 
 function openModal(empId,dateStr,service,empName,day){
@@ -399,8 +453,8 @@ function togglePosteHeure(status){
   document.getElementById('heure-group').style.display=show?'':'none';
 }
 
-function closeModalOutside(e){ if(e.target===document.getElementById('modal-overlay')) closeModalDirect(); }
-function closeModalDirect(){ document.getElementById('modal-overlay').classList.add('hidden'); editTarget=null; }
+function closeModalOutside(e){if(e.target===document.getElementById('modal-overlay')) closeModalDirect();}
+function closeModalDirect(){document.getElementById('modal-overlay').classList.add('hidden');editTarget=null;}
 
 function saveCell(){
   if(!editTarget) return;
@@ -408,10 +462,10 @@ function saveCell(){
   const poste=status==='present'?document.getElementById('modal-poste').value:'';
   const heure=status==='present'?document.getElementById('modal-heure').value:'';
   setCell(editTarget.empId,editTarget.dateStr,editTarget.service,{status,poste,heure});
-  closeModalDirect(); renderAll();
+  closeModalDirect();renderAll();
 }
 
-load(); renderAll();
+loadEmployees();loadMonth();renderAll();
 </script>
 </body>
 </html>
